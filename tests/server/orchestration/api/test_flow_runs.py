@@ -375,6 +375,42 @@ class TestCreateFlowRun:
             )
             assert response.status_code == status.HTTP_201_CREATED
 
+    @pytest.mark.parametrize("value", [2**64, -(2**63) - 1])
+    async def test_create_flow_run_with_integer_outside_64_bit_range_returns_422(
+        self,
+        flow: Flow,
+        client: AsyncClient,
+        value: int,
+    ):
+        response = await client.post(
+            "/flow_runs/",
+            json={
+                "flow_id": str(flow.id),
+                "parameters": {"x": value, "nested": {"values": [value]}},
+            },
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "64-bit" in response.text
+
+    async def test_create_flow_run_with_64_bit_integers_succeeds(
+        self,
+        flow: Flow,
+        client: AsyncClient,
+    ):
+        response = await client.post(
+            "/flow_runs/",
+            json={
+                "flow_id": str(flow.id),
+                "parameters": {"max": 2**64 - 1, "min": -(2**63), "flag": True},
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["parameters"] == {
+            "max": 2**64 - 1,
+            "min": -(2**63),
+            "flag": True,
+        }
+
 
 class TestUpdateFlowRun:
     async def test_update_flow_run_succeeds(self, flow, session, client):
@@ -720,6 +756,28 @@ class TestReadFlowRuns:
         assert len(response.json()) == 3
         # return type should be correct
         assert parse_obj_as(List[schemas.responses.FlowRunResponse], response.json())
+
+    async def test_read_flow_runs_with_integer_outside_64_bit_range_in_parameters(
+        self, flow, session, client
+    ):
+        # Rows stored before parameters were checked can still hold such values;
+        # listing them must not fail.
+        flow_run = await models.flow_runs.create_flow_run(
+            session=session,
+            flow_run=schemas.core.FlowRun(flow_id=flow.id, parameters={"x": 2**70}),
+        )
+        await session.commit()
+
+        response = await client.post("/flow_runs/filter")
+        assert response.status_code == status.HTTP_200_OK
+        parameters = {run["id"]: run["parameters"] for run in response.json()}
+        assert parameters[str(flow_run.id)] == {"x": 2**70}
+
+        response = await client.post("/flow_runs/paginate")
+        assert response.status_code == status.HTTP_200_OK
+        assert any(
+            run["parameters"] == {"x": 2**70} for run in response.json()["results"]
+        )
 
     async def test_read_flow_runs_work_pool_fields(
         self,
