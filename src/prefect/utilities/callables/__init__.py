@@ -101,7 +101,12 @@ def get_parameter_defaults(
 
     for name, param in signature.parameters.items():
         if param.default is not signature.empty:
-            parameter_defaults[name] = param.default
+            default = param.default
+            # `param: T = Field(default=...)` leaves a FieldInfo in the signature;
+            # callers expect the declared default value, as `get_call_parameters` returns.
+            if isinstance(default, pydantic.fields.FieldInfo):
+                default = default.default
+            parameter_defaults[name] = default
 
     return parameter_defaults
 

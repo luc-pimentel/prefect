@@ -800,6 +800,30 @@ class TestGetCallParameters:
         assert isinstance(result["labels"], list)
 
 
+class TestGetParameterDefaults:
+    def test_returns_plain_defaults(self):
+        def fn(x: int, y: int = 3, z: str = "a"):
+            pass
+
+        assert callables.get_parameter_defaults(fn) == {"y": 3, "z": "a"}
+
+    def test_field_defaults_are_unwrapped(self):
+        """`.map()` fills unmapped parameters from these defaults; a `FieldInfo` must
+        not leak into the task, as it did not for `get_call_parameters`."""
+
+        def fn(
+            x: int,
+            count: int = Field(default=0, description="a count param"),
+            tags: list[str] = Field(default=["a", "b"], description="a list param"),
+        ):
+            pass
+
+        result = callables.get_parameter_defaults(fn)
+        assert result == {"count": 0, "tags": ["a", "b"]}
+        assert isinstance(result["count"], int)
+        assert isinstance(result["tags"], list)
+
+
 class TestExplodeVariadicParameter:
     def test_no_error_if_no_variadic_parameter(self):
         def foo(a, b):
