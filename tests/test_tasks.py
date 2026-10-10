@@ -4779,6 +4779,22 @@ class TestTaskMap:
 
         my_flow()
 
+    async def test_map_unwraps_field_defaults_for_unmapped_parameters(self):
+        """An unmapped parameter declared with `Field(default=...)` receives the
+        default value, as direct calls do, not the `FieldInfo` object."""
+        from pydantic import Field
+
+        @task
+        def add_default(x: int, y: int = Field(default=3)):
+            return x + y
+
+        @flow
+        def my_flow():
+            return add_default.map([1, 2])
+
+        futures = my_flow()
+        assert [await f.result() for f in futures] == [4, 5]
+
 
 class TestTaskConstructorValidation:
     async def test_task_cannot_configure_poorly_typed_retry_delay(self):
