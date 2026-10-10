@@ -26,6 +26,7 @@ from prefect._internal.schemas.validators import (
     validate_cache_key_length,
     validate_max_metadata_length,
     validate_name_present_on_nonanonymous_blocks,
+    validate_parameter_integers_fit_64_bits,
     validate_parameter_openapi_schema,
     validate_parameter_size_field,
     validate_parameters_conform_to_schema,
@@ -56,7 +57,9 @@ from prefect.utilities.names import generate_slug
 from prefect.utilities.templating import find_placeholders
 
 SizedParameters = Annotated[
-    Dict[str, Any], AfterValidator(validate_parameter_size_field)
+    Dict[str, Any],
+    AfterValidator(validate_parameter_size_field),
+    AfterValidator(validate_parameter_integers_fit_64_bits),
 ]
 
 

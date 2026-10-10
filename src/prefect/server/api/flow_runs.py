@@ -6,6 +6,7 @@ import asyncio
 import csv
 import datetime
 import io
+import json
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import quote
 from uuid import UUID
@@ -99,6 +100,17 @@ async def _maybe_schedule_cancelling_timeout_check_for_state(
                 "flow_run_state_id": str(state.id) if state and state.id else None,
             },
         )
+
+
+def _json_response(content: Any) -> Response:
+    """Serialize with orjson for speed. orjson rejects integers outside the 64-bit
+    range; rows stored before parameters were validated can still hold them, so
+    fall back to the standard library rather than fail the request."""
+    try:
+        body = orjson.dumps(content)
+    except TypeError:
+        body = json.dumps(content).encode()
+    return Response(content=body, media_type="application/json")
 
 
 @router.post("/")
@@ -622,10 +634,7 @@ async def read_flow_runs(
             ).model_dump(mode="json")
             for fr in db_flow_runs
         ]
-        return Response(
-            content=orjson.dumps(encoded),
-            media_type="application/json",
-        )
+        return _json_response(encoded)
 
 
 @router.delete("/{id:uuid}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1048,10 +1057,7 @@ async def paginate_flow_runs(
         page=page,
     ).model_dump(mode="json")
 
-    return Response(
-        content=orjson.dumps(response),
-        media_type="application/json",
-    )
+    return _json_response(response)
 
 
 FLOW_RUN_LOGS_DOWNLOAD_PAGE_LIMIT = 1000

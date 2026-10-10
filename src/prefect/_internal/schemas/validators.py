@@ -108,6 +108,35 @@ def validate_parameter_size_field(
     return parameters
 
 
+# orjson, which serializes the flow run list and pagination responses, accepts
+# integers from the signed 64-bit minimum to the unsigned 64-bit maximum.
+MIN_PARAMETER_INTEGER = -(2**63)
+MAX_PARAMETER_INTEGER = 2**64 - 1
+
+
+def validate_parameter_integers_fit_64_bits(
+    parameters: dict[str, Any],
+) -> dict[str, Any]:
+    """Raise ValueError if any integer in the parameters, at any depth, is outside
+    the 64-bit range that the API can serialize when listing flow runs."""
+    stack: list[Any] = [parameters]
+    while stack:
+        value = stack.pop()
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, int):
+            if not MIN_PARAMETER_INTEGER <= value <= MAX_PARAMETER_INTEGER:
+                raise ValueError(
+                    "Parameters must not contain integers outside the 64-bit range"
+                    f" ({MIN_PARAMETER_INTEGER} to {MAX_PARAMETER_INTEGER}); got {value}."
+                )
+        elif isinstance(value, Mapping):
+            stack.extend(value.values())
+        elif isinstance(value, (list, tuple, set)):
+            stack.extend(value)
+    return parameters
+
+
 ### DEPLOYMENT SCHEMA VALIDATORS ###
 
 
